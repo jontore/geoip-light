@@ -1,13 +1,9 @@
-/**
- * \file
- *       ESP8266 RESTful Bridge example
- * \author
- *       Tuan PM <tuanpm@live.com>
- */
-
 #include <SoftwareSerial.h>
 #include <espduino.h>
 #include <rest.h>
+
+
+#define DEBUG
 
 #define LIGHTPIN 13
 
@@ -17,9 +13,15 @@
 #define DOMAIN "freegeoip.net"
 #define PATH "/json/"
 #define COUNTRY_CODE "CH"
-SoftwareSerial debugPort(2, 3); // RX, TX
+#ifdef DEBUG
+  SoftwareSerial debugPort(2, 3); // RX, TX
+#endif
 
+#ifdef DEBUG
 ESP esp(&Serial, &debugPort, 4);
+#else
+ESP esp(&Serial, 4);
+#endif
 
 REST rest(&esp);
 
@@ -33,7 +35,9 @@ void wifiCb(void* response)
   if (res.getArgc() == 1) {
     res.popArgs((uint8_t*)&status, 4);
     if (status == STATION_GOT_IP) {
-      debugPort.println("WIFI CONNECTED");
+      #ifdef DEBUG
+        debugPort.println("WIFI CONNECTED");
+      #endif
       wifiConnected = true;
     } else {
       wifiConnected = false;
@@ -43,20 +47,24 @@ void wifiCb(void* response)
 }
 
 void turnOnLedIfNoMatch(String str, String matchStr) {
-  int matchIndex = str.indexOf(matchStr);  
-  debugPort.println(str);
-  debugPort.println(matchIndex);
+  int matchIndex = str.indexOf(matchStr);
+  #ifdef DEBUG
+    debugPort.println(str);
+    debugPort.println(matchIndex);
+  #endif
   if (matchIndex == -1) {
-    digitalWrite(LIGHTPIN, HIGH); 
+    digitalWrite(LIGHTPIN, HIGH);
   } else {
-    digitalWrite(LIGHTPIN, LOW); 
+    digitalWrite(LIGHTPIN, LOW);
   }
 }
 
 void setup() {
   Serial.begin(19200);
-  debugPort.begin(19200);
-  debugPort.println("INIT");
+  #ifdef DEBUG
+    debugPort.begin(19200);
+    debugPort.println("INIT");
+  #endif
   pinMode(LIGHTPIN, OUTPUT);
   esp.enable();
   delay(500);
@@ -64,25 +72,36 @@ void setup() {
   delay(500);
   while (!esp.ready());
 
-  debugPort.println("ARDUINO: setup rest client");
+  #ifdef DEBUG
+    debugPort.println("ARDUINO: setup rest client");
+  #endif
   if (!rest.begin(DOMAIN)) {
-    debugPort.println("ARDUINO: failed to setup rest client");
+    #ifdef DEBUG
+      debugPort.println("ARDUINO: failed to setup rest client");
+    #endif
     while (1);
   }
 
   /*setup wifi*/
-  debugPort.println("ARDUINO: setup wifi");
+  #ifdef DEBUG
+    debugPort.println("ARDUINO: setup wifi");
+  #endif
   esp.wifiCb.attach(&wifiCb);
   esp.wifiConnect(SSID, PASSWORD);
-  debugPort.println("ARDUINO: system started");
+  #ifdef DEBUG
+    debugPort.println("ARDUINO: system started");
+  #endif
 }
-char response[50] = "{country_code: CH}";
-void loop() { 
+
+char response[50] = "";
+void loop() {
   esp.process();
   if (wifiConnected) {
     rest.get(PATH);
     if (rest.getResponse(response, 50) == HTTP_STATUS_OK) {
-      debugPort.println("ARDUINO: GET successful");
+      #ifdef DEBUG
+        debugPort.println("ARDUINO: GET successful");
+      #endif
       turnOnLedIfNoMatch(response, COUNTRY_CODE);
     }
     delay(10000);
