@@ -1,109 +1,84 @@
-#include <SoftwareSerial.h>
-#include <espduino.h>
-#include <rest.h>
-
-
-#define DEBUG
-
-#define LIGHTPIN 13
+#include <ESP8266WiFi.h>
 
 #define SSID ""
 #define PASSWORD ""
 
-#define DOMAIN "freegeoip.net"
-#define PATH "/json/"
-#define COUNTRY_CODE "CH"
-#ifdef DEBUG
-  SoftwareSerial debugPort(2, 3); // RX, TX
-#endif
+#define DOMAIN_URL "www.telize.com"
+#define PATH "/geoip/"
+#define COUNTRY_CODE_CH "\"country_code\":\"CH\""
+#define COUNTRY_CODE_US "\"country_code\":\"US\""
+#define LIGHT_PIN_CH 2
+#define LIGHT_PIN_US 0
 
-#ifdef DEBUG
-ESP esp(&Serial, &debugPort, 4);
-#else
-ESP esp(&Serial, 4);
-#endif
+const char* host = DOMAIN_URL ;
 
-REST rest(&esp);
-
-boolean wifiConnected = false;
-
-void wifiCb(void* response)
-{
-  uint32_t status;
-  RESPONSE res(response);
-
-  if (res.getArgc() == 1) {
-    res.popArgs((uint8_t*)&status, 4);
-    if (status == STATION_GOT_IP) {
-      #ifdef DEBUG
-        debugPort.println("WIFI CONNECTED");
-      #endif
-      wifiConnected = true;
-    } else {
-      wifiConnected = false;
-    }
-
+void turnOnLedIfNoMatch(String str, String matchStr, int pinN) {
+  int matchIndex = str.indexOf(matchStr);
+  if (matchIndex == -1) {
+    digitalWrite(pinN, LOW);
+  } else {
+    digitalWrite(pinN, HIGH);
   }
 }
 
-void turnOnLedIfNoMatch(String str, String matchStr) {
-  int matchIndex = str.indexOf(matchStr);
-  #ifdef DEBUG
-    debugPort.println(str);
-    debugPort.println(matchIndex);
-  #endif
-  if (matchIndex == -1) {
-    digitalWrite(LIGHTPIN, HIGH);
-  } else {
-    digitalWrite(LIGHTPIN, LOW);
+
+void connectToWifi (const char* ssid, const char* password) {
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  
+  WiFi.begin(ssid, password);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
   }
 }
 
 void setup() {
-  Serial.begin(19200);
-  #ifdef DEBUG
-    debugPort.begin(19200);
-    debugPort.println("INIT");
-  #endif
-  pinMode(LIGHTPIN, OUTPUT);
-  esp.enable();
-  delay(500);
-  esp.reset();
-  delay(500);
-  while (!esp.ready());
+  Serial.begin(115200);
+  delay(10);
+  pinMode(LIGHT_PIN_CH, OUTPUT);
+  pinMode(LIGHT_PIN_US, OUTPUT);
 
-  #ifdef DEBUG
-    debugPort.println("ARDUINO: setup rest client");
-  #endif
-  if (!rest.begin(DOMAIN)) {
-    #ifdef DEBUG
-      debugPort.println("ARDUINO: failed to setup rest client");
-    #endif
-    while (1);
-  }
-
-  /*setup wifi*/
-  #ifdef DEBUG
-    debugPort.println("ARDUINO: setup wifi");
-  #endif
-  esp.wifiCb.attach(&wifiCb);
-  esp.wifiConnect(SSID, PASSWORD);
-  #ifdef DEBUG
-    debugPort.println("ARDUINO: system started");
-  #endif
+  // We start by connecting to a WiFi network
+  connectToWifi(SSID, PASSWORD);
 }
 
-char response[50] = "";
 void loop() {
-  esp.process();
-  if (wifiConnected) {
-    rest.get(PATH);
-    if (rest.getResponse(response, 50) == HTTP_STATUS_OK) {
-      #ifdef DEBUG
-        debugPort.println("ARDUINO: GET successful");
-      #endif
-      turnOnLedIfNoMatch(response, COUNTRY_CODE);
-    }
-    delay(10000);
+  delay(5000);
+
+  Serial.print("connecting to ");
+  Serial.println(host);
+  
+  // Use WiFiClient class to create TCP connections
+  WiFiClient client;
+  const int httpPort = 80;
+  if (!client.connect(host, httpPort)) {
+    Serial.println("connection failed");
+    return;
   }
+  
+  // We now create a URI for the request
+  String url = PATH;
+  
+  // This will send the request to the server
+  client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+               "Host: " + host + "\r\n" + 
+               "Connection: close\r\n\r\n");
+  delay(10);
+
+  // Read all the lines of the reply from server and print them to Serial
+  while(client.available()){
+    String line = client.readStringUntil('\n');
+    //Only check json object
+    if(line.startsWith("{")) {
+      turnOnLedIfNoMatch(line, COUNTRY_CODE_CH, LIGHT_PIN_CH);
+      turnOnLedIfNoMatch(line, COUNTRY_CODE_US, LIGHT_PIN_US);
+      
+    }
+  }
+  
+  Serial.println();
+  Serial.println("closing connection");
 }
+
