@@ -1,7 +1,6 @@
+## GEOIP light
 
+Using esp8266 with the the two gpio pins two turn on different LEDs for when in a specific region.
 
-=== GEOIP light
-
-A little project that lights a led light if geoip condition is not met. In the example case when the swiss country code can not be found in the response from freegeoip.net
-
-Using the https://github.com/tuanpmt/espduino library
+More information on how to use the esp8266 standalone can be found here
+http://www.esp8266.com/
